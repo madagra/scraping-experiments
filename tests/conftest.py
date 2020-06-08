@@ -1,6 +1,9 @@
 
 import os
 import pytest
+from bs4 import BeautifulSoup
+
+fsct_html_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), "resources", "FSCT.html")
 
 @pytest.fixture
 def fsct_symbol_url():
@@ -8,8 +11,13 @@ def fsct_symbol_url():
 
 @pytest.fixture
 def fsct_html():
-    html_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), 
-        "resources", "fsct_mock.html")
-    with open(html_file, "r") as f:
-        html = f.read()
-    return html
+    with open(fsct_html_file, "r") as f:
+        html_content = f.read()
+    return html_content
+
+@pytest.fixture
+def parsed_fsct_html():
+    with open(fsct_html_file, "r") as f:
+        html_content = f.read()
+    soup = BeautifulSoup(html_content, "html.parser")
+    return soup

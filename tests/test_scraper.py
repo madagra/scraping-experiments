@@ -1,6 +1,6 @@
 import pytest
 import yf_scraper.scraper as scraper
-from yf_scraper.scraper import ScraperResult
+from yf_scraper.scraper import ScraperResult, YfIndicator
 
 
 def test_url_generation(fsct_symbol_url):
@@ -38,22 +38,34 @@ def test_malformed_url_request(malformed_url):
     assert actual_resp["code"] == 400
     assert actual_resp["result"] is None
 
-@pytest.mark.parametrize("full_name_str", ["Forescout Technologies, Inc. (FSCT)"])
-def test_parse_symbol_fullname(full_name_str):
-    
+@pytest.mark.parametrize("full_name_str", ["FSCT - Forescout Technologies, Inc."])
+def test_get_symbol_name(full_name_str):
     expected_resp = "Forescout Technologies, Inc.", "FSCT"
     actual_resp = scraper._yf_get_symbol_name(full_name_str)
     assert actual_resp == expected_resp
 
-def test_parse_close_eps(fsct_html):
-    pass
+def test_get_trading_value_prevclose(parsed_fsct_html):
+    expected_value = 23.1
+    value = scraper._yf_get_trading_value(parsed_fsct_html, YfIndicator.PREV_CLOSE)
+    assert type(value) == float
+    assert value == expected_value
 
-def test_scraper(fsct_html):
+def test_get_trading_value_eps(parsed_fsct_html):
+    expected_value = -3.09
+    value = scraper._yf_get_trading_value(parsed_fsct_html, YfIndicator.EPS)
+    assert type(value) == float
+    assert value == expected_value
+
+def test_get_trading_value_wrong(parsed_fsct_html):
+    value = scraper._yf_get_trading_value(parsed_fsct_html, "")
+    assert value is None
+
+def test_yf_scraper(fsct_html):
     
     expected_res = ScraperResult(
         full_name="Forescout Technologies, Inc.",
         symbol="FSCT",
-        close_price=24.27,
+        close_price=23.1,
         eps=-3.09
     )
 
@@ -61,3 +73,12 @@ def test_scraper(fsct_html):
 
     assert isinstance(actual_res, ScraperResult)
     assert expected_res == actual_res
+
+@pytest.mark.parametrize("symbol", [ "FSCT", "AMD", "MSFT", "AAPL" ]) 
+def test_scrape_symbol_stocks(symbol):
+    res = scraper.scrape_symbol_data(symbol)
+    assert isinstance(res, ScraperResult)
+    assert res.full_name and res.symbol
+    assert res.symbol == symbol
+    assert res.close_price > 0
+    assert res.eps**2 > 0
