@@ -60,7 +60,7 @@ def test_get_trading_value_wrong(parsed_fsct_html):
     value = scraper._yf_get_trading_value(parsed_fsct_html, "")
     assert value is None
 
-def test_yf_scraper(fsct_html):
+def test_yf_scraper_stock(fsct_html):
     
     expected_res = ScraperResult(
         full_name="Forescout Technologies, Inc.",
@@ -74,7 +74,21 @@ def test_yf_scraper(fsct_html):
     assert isinstance(actual_res, ScraperResult)
     assert expected_res == actual_res
 
-@pytest.mark.parametrize("symbol", [ "FSCT", "AMD", "MSFT", "AAPL" ]) 
+def test_yf_scraper_etf(ievl_html):
+    
+    expected_res = ScraperResult(
+        full_name="iShares Edge MSCI Europe Value Factor UCITS ETF EUR (Acc)",
+        symbol="IEVL",
+        close_price=5.31,
+    )
+
+    actual_res = scraper.yf_scraper(ievl_html)
+
+    assert isinstance(actual_res, ScraperResult)
+    assert expected_res == actual_res
+
+
+@pytest.mark.parametrize("symbol", [ "FSCT", "AMD", "MSFT", "AAPL"]) 
 def test_scrape_symbol_stocks(symbol):
     res = scraper.scrape_symbol_data(symbol)
     assert isinstance(res, ScraperResult)

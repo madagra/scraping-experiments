@@ -43,7 +43,6 @@ def yf_url_request(url: str) -> dict:
 
 def _yf_get_symbol_name(full_str) -> (str, str):
     full_name, symbol = "", ""
-    # regex = re.compile(r"^(.*)\s*\((.*)\)$")
     regex = re.compile(r"^(.*)\s\-\s(.*)")
     match = regex.match(full_str)
     if match is not None and len(match.groups()) == 2:
@@ -85,6 +84,14 @@ def scrape_symbol_data(symbol: str) -> ScraperResult:
     """
     Scraper driver function which starting from a stock symbol scrapes the
     associated trading data from Yahoo Finance website
+
+    Parameters
+    ----------
+    symbol: the stock ticker symbol to retrieve
+
+    Returns
+    -------
+    a ScraperResult instance filled with scraped results
     """
     res = ScraperResult()
     try:
