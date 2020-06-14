@@ -9,12 +9,18 @@ from bs4 import BeautifulSoup
 class ScraperResult:
     full_name: str = ""
     symbol: str = ""
+    open_price: float = 0.
     close_price: float = 0.
-    eps: float = 0.
+    ask: float = None
+    bid: float = None
+    eps: float = None
 
 
 class YfIndicator(Enum):
+    OPEN = "OPEN-value",
     PREV_CLOSE = "PREV_CLOSE-value",
+    ASK = "ASK-value",
+    BID = "BID-value",
     EPS = "EPS_RATIO-value"
     
 
@@ -42,12 +48,19 @@ def yf_url_request(url: str) -> dict:
     return res
 
 def _yf_get_symbol_name(full_str) -> (str, str):
+    
     full_name, symbol = "", ""
     regex = re.compile(r"^(.*)\s\-\s(.*)")
     match = regex.match(full_str)
+
     if match is not None and len(match.groups()) == 2:
         full_name = match.group(2)
         symbol = match.group(1)
+
+        # for more complex names containing more than one '-' character
+        if "-" in symbol:
+            full_name, symbol = _yf_get_symbol_name(symbol)
+
     return full_name, symbol
 
 def _yf_get_trading_value(parsed_html: BeautifulSoup, 
@@ -58,8 +71,12 @@ def _yf_get_trading_value(parsed_html: BeautifulSoup,
         tag = parsed_html.find_all("td", attrs={"data-test": value_type.value})
         if len(tag) == 1:
             value = tag[0].span.contents
-            res = float(value[0])
-    except (AssertionError, AttributeError) :
+            try:
+                res = float(value[0])
+            except ValueError:
+                value = value[0].split("x")
+                res = float(value[0])
+    except (AssertionError, AttributeError, ValueError) :
         pass
     return res
 
@@ -75,7 +92,10 @@ def yf_scraper(html_content: str) -> ScraperResult:
         res.full_name, res.symbol = _yf_get_symbol_name(tmp)
 
     # extract financial indicators
+    res.open_price = _yf_get_trading_value(parsed_html, YfIndicator.OPEN)
     res.close_price = _yf_get_trading_value(parsed_html, YfIndicator.PREV_CLOSE)
+    res.ask = _yf_get_trading_value(parsed_html, YfIndicator.ASK)
+    res.bid = _yf_get_trading_value(parsed_html, YfIndicator.BID)
     res.eps = _yf_get_trading_value(parsed_html, YfIndicator.EPS)
     
     return res

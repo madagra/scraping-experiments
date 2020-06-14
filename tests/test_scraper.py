@@ -65,7 +65,10 @@ def test_yf_scraper_stock(fsct_html):
     expected_res = ScraperResult(
         full_name="Forescout Technologies, Inc.",
         symbol="FSCT",
+        open_price=23.10,
         close_price=23.1,
+        ask=22.85,
+        bid=21.80,
         eps=-3.09
     )
 
@@ -78,8 +81,11 @@ def test_yf_scraper_etf(ievl_html):
     
     expected_res = ScraperResult(
         full_name="iShares Edge MSCI Europe Value Factor UCITS ETF EUR (Acc)",
-        symbol="IEVL",
+        symbol="IEVL.L",
+        open_price=5.34,
         close_price=5.31,
+        ask=5.27,
+        bid=5.27
     )
 
     actual_res = scraper.yf_scraper(ievl_html)
@@ -94,5 +100,21 @@ def test_scrape_symbol_stocks(symbol):
     assert isinstance(res, ScraperResult)
     assert res.full_name and res.symbol
     assert res.symbol == symbol
+    assert res.open_price > 0
     assert res.close_price > 0
+    assert res.ask > 0
+    assert res.bid > 0
     assert res.eps**2 > 0
+
+
+@pytest.mark.parametrize("symbol", ["CMUD.PA", "IEVL.L"]) 
+def test_scrape_symbol_etfs(symbol):
+    res = scraper.scrape_symbol_data(symbol)
+    assert isinstance(res, ScraperResult)
+    assert res.full_name and res.symbol
+    assert res.symbol == symbol
+    assert res.open_price > 0
+    assert res.close_price > 0
+    assert res.ask is None or res.ask > 0 
+    assert res.bid is None or res.bid > 0 
+    assert res.eps is None
