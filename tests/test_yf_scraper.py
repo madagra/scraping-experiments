@@ -1,6 +1,6 @@
 import pytest
-import yf_scraper.scraper as scraper
-from yf_scraper.scraper import ScraperResult, YfIndicator
+import scrapers.yf_scraper as scraper
+from scrapers.yf_scraper import ScraperResult, YfIndicator
 
 
 def test_url_generation(fsct_symbol_url):

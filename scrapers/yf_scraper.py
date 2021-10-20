@@ -1,6 +1,7 @@
 import re
 from enum import Enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Tuple
 import requests
 from bs4 import BeautifulSoup 
 
@@ -47,7 +48,7 @@ def yf_url_request(url: str) -> dict:
         pass
     return res
 
-def _yf_get_symbol_name(full_str) -> (str, str):
+def _yf_get_symbol_name(full_str) -> Tuple[str, str]:
     
     full_name, symbol = "", ""
     regex = re.compile(r"^(.*)\s\-\s(.*)")
