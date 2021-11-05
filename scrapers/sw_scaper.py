@@ -1,10 +1,8 @@
 import re
 import os
-from enum import Enum
 import time
 from dataclasses import dataclass
 from typing import Tuple, Optional, List
-import requests
 from bs4 import BeautifulSoup
 from selenium import webdriver
 import logging
@@ -12,6 +10,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+MAX_PAGES = 12
 
 os.environ['MOZ_HEADLESS'] = '1'
 browser = webdriver.Firefox()
@@ -64,7 +63,7 @@ def sw_scraper(html_content: str) -> List[ScraperResult]:
         data = row.find_all("div", {"class": "rt-td"})
         for inner_data in data:
             
-            a = inner_data.find_all("a", {"href": "/savings/cardano/"})
+            a = inner_data.find_all("a", {"href": re.compile("savings*")})
             if len(a) == 1:
                 a_str = a[0].div.contents[0]
                 tmp_res.staked_value_usd = float(a_str[1:].replace(",",""))
@@ -111,16 +110,87 @@ def scrape_reward_data(pages: Optional[List[int]] = None) -> List[ScraperResult]
     return res
 
 
-if __name__ == "__main__":
-    res = scrape_reward_data(pages=[1])
+def run_as_script():
+
+    import argparse
+    from datetime import datetime, date
+    import csv
+    import operator
+
+    from tabulate import tabulate
+
+    COLUMNS = ["Date", "Ticker", "Price", "Market cap (USD)", "Reward (%)", "Staked value (USD)"]
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "-p",
+        "--pages",
+        help="The pages of SW data to scrape. Give start and end page separated by dash or 'all' to scrape all the pages. Example: --pages 1-11",
+        dest="pages",
+        default="1-10",
+        required=False,
+        type=str,
+    )
+
+    parser.add_argument(
+        "-f",
+        "--format",
+        help="The output format. Choose between 'csv' or 'table'. Default is 'table'",
+        dest="format",
+        default="table",
+        required=False,
+        type=str
+    )
+
+    args = parser.parse_args()
+
+    pages = args.pages.split("-")
+
+    if args.pages == "all":
+        pages = (1, MAX_PAGES)
+
+    if len(pages) == 1:
+        pages = (int(pages[0]), int(pages[0]))
+
+    pages = tuple([int(p) for p in pages])
+
+    assert pages[0] < pages[1] or pages[0] == pages[1], "Wrong page interval selected"
+    if pages[0] > MAX_PAGES or pages[1] > MAX_PAGES:
+        raise ValueError(f"You are requesting pages which do not exist! Available pages are from 1 to {MAX_PAGES}")
+
+    pages = range(int(pages[0]), int(pages[1]) + 1)
+
+    results = scrape_reward_data(pages=pages)
+    results.sort(key=operator.attrgetter("market_cap_usd"), reverse=True)
+
+    if args.format == "csv":
+
+        with open("sw_results.csv", "w", newline="") as csvfile:
+
+            writer = csv.writer(csvfile, delimiter=",", quotechar='|', quoting=csv.QUOTE_MINIMAL)
+            now = datetime.now()
+            writer.writerow(COLUMNS)
+            for r in results:
+                row = [now, r.ticker, r.price, r.market_cap_usd, r.reward, r.staked_value_usd]
+                writer.writerow(row)        
     
-    r: ScraperResult
-    for r in res:
-        print()
-        print(f"Currency: {r.ticker}")
-        print(f"Market cap: {r.market_cap_usd}")
-        print(f"Staking reward: {r.reward}")
-        print(f"Total staked: {r.staked_value_usd}")
-        print(f"Current price: {r.price}")
-        print("-----------")
-        time.sleep(1)
+    elif args.format == "table":
+        
+        table = {
+            "Date": [str(date.today())] * len(results),
+            "Ticker": [r.ticker for r in results],
+            "Price": [r.ticker for r in results],
+            "Market cap (USD)": [r.market_cap_usd for r in results],
+            "Reward (%)": [r.reward for r in results],
+            "Stacked value (USD)": [r.staked_value_usd for r in results],
+            "Stacked percentage (%)": [r.total_staked_pc for r in results],
+        }
+        print(tabulate(table, headers="keys"))
+
+    else:
+        raise NotImplementedError("Use either 'csv' or 'table' as output formats")
+
+
+if __name__ == "__main__":
+    run_as_script()
