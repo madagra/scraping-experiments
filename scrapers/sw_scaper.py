@@ -23,6 +23,7 @@ class ScraperResult:
     staked_value_usd: float = None
     reward: float = None
     total_staked_pc: float = None
+    price_change_24h: str = None
     
 
 def sw_url_generation(page: int = 1, debug: bool = True) -> str:
@@ -44,7 +45,7 @@ def sw_scraper(html_content: str) -> List[ScraperResult]:
     table_data = parsed_html.find_all("div", {"class": "rt-tr-group"})
 
     for row in table_data:
-        
+
         tmp_res = ScraperResult()
 
         # find the name of the coin
@@ -61,30 +62,55 @@ def sw_scraper(html_content: str) -> List[ScraperResult]:
 
         # find the reward
         data = row.find_all("div", {"class": "rt-td"})
-        for inner_data in data:
+        for i, inner_data in enumerate(data):
             
-            a = inner_data.find_all("a", {"href": re.compile("savings*")})
-            if len(a) == 1:
-                a_str = a[0].div.contents[0]
-                tmp_res.staked_value_usd = float(a_str[1:].replace(",",""))
-            
-            tmp = inner_data.find_all("a")
-            for a in tmp:
-                a_str = str(a.contents[0])
+            # first two rows do not contain any interesting data
+            if i < 2:
+                continue
 
-                # total staked
-                if a_str.endswith("%") and tmp_res.reward is None:
-                    tmp_res.reward = float(a_str[:-1])
+            try:            
 
-                # market cap
-                if a_str.startswith("$") and tmp_res.market_cap_usd is None:
-                    tmp_res.market_cap_usd = float(a_str[1:].replace(",",""))
+                a_stacked_value = inner_data.find_all("a", {"href": re.compile("savings*")})
+                if len(a_stacked_value) > 0:
+                    a_str = a_stacked_value[0].div.contents[0]
+                    if a_str.startswith("$") and tmp_res.staked_value_usd is None:
+                        tmp_res.staked_value_usd = float(a_str[1:].replace(",",""))
 
-                # total staked
-                if a_str.endswith("%") and tmp_res.total_staked_pc is None:
-                    pc_stacked = float(a_str[:-1])
-                    tmp_res.total_staked_pc = pc_stacked
-        
+                a = inner_data.find_all("a", {"href": re.compile("earn*")})
+                if len(a) == 1:
+                
+                    # price change 24 hours
+                    tmp = inner_data.find_all("span", {"class": "row-24-price-change"})
+                    if len(tmp) == 1:
+                        change = tmp[0].contents[0]
+                        tmp_res.price_change_24h = float(change[:-1])
+
+                    tmp = inner_data.find_all("a")
+                    for a in tmp:
+                        a_str = str(a.contents[0])
+
+                        # market cap
+                        if a_str.startswith("$") and tmp_res.market_cap_usd is None:
+                            tmp_res.market_cap_usd = float(a_str[1:].replace(",",""))
+
+                        # reward
+                        elif a_str.endswith("%") and tmp_res.reward is None:
+                            tmp_res.reward = float(a_str[:-1])
+
+                        # total staked percentage
+                        elif a_str.endswith("$") and tmp_res.staked_value_usd is None:
+                            total_staked_usd = float(a_str[:-1])
+                            tmp_res.staked_value_usd = total_staked_usd
+
+                        # total staked percentage
+                        elif a_str.endswith("%") and tmp_res.total_staked_pc is None:
+                            pc_stacked = float(a_str[:-1])
+                            tmp_res.total_staked_pc = pc_stacked
+
+            except ValueError:
+                logger.warning("Error reading data row, skipping...")
+                break
+
         res.append(tmp_res)
     
     return res
@@ -162,6 +188,9 @@ def run_as_script():
     pages = range(int(pages[0]), int(pages[1]) + 1)
 
     results = scrape_reward_data(pages=pages)
+    # for r in results:
+    #     if r.market_cap_usd is None:
+    #         r.market_cap_usd = 0.
     results.sort(key=operator.attrgetter("market_cap_usd"), reverse=True)
 
     if args.format == "csv":
