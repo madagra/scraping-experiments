@@ -13,18 +13,11 @@ logger = logging.getLogger(__name__)
 
 MAX_PAGES = 12
 
-ticker_mapping = {
-    "Ethereum 2.0": "ETH",
-    "Solana": "SOL",
-    "Cardano": "ADA"
-    # TODO: Finish it up
-}
-
 os.environ['MOZ_HEADLESS'] = '1'
 
 
 @dataclass
-class ScraperResult:
+class StakingRewardsResult:
     ticker: str = ""
     price: float = 0.
     market_cap_usd: float = None
@@ -34,7 +27,7 @@ class ScraperResult:
     price_change_24h: str = None
     
 
-def sw_url_generation(page: int = 1, debug: bool = True) -> str:
+def sw_url_generation(page: int = 1, browser: webdriver.Firefox = None, debug: bool = True) -> str:
     if not debug:
         base_url = "https://www.stakingrewards.com/cryptoassets/"
         url = base_url + f"?page={page}&sort=rank_ASC"
@@ -46,7 +39,7 @@ def sw_url_generation(page: int = 1, debug: bool = True) -> str:
             html_content = f.read()
         return html_content
 
-def sw_scraper(html_content: str) -> List[ScraperResult]:
+def sw_scraper(html_content: str) -> List[StakingRewardsResult]:
 
     res = []
     parsed_html = BeautifulSoup(html_content, "html.parser")
@@ -54,7 +47,7 @@ def sw_scraper(html_content: str) -> List[ScraperResult]:
 
     for row in table_data:
 
-        tmp_res = ScraperResult()
+        tmp_res = StakingRewardsResult()
 
         # find the name of the coin
         data = row.find_all("b", {"class": re.compile("brandGroup_name_*")})
@@ -124,18 +117,18 @@ def sw_scraper(html_content: str) -> List[ScraperResult]:
     return res
                 
 
-def scrape_reward_data(pages: Optional[List[int]] = None) -> List[ScraperResult]:
+def scrape_reward_data(pages: Optional[List[int]] = None) -> List[StakingRewardsResult]:
     
     browser = webdriver.Firefox()
     
-    res: List[ScraperResult] = []
+    res: List[StakingRewardsResult] = []
     if pages is None:
         pages = range(10000)
     
     for page in pages:
         print(f"Scraping page {page}")
         try:
-            html_content = sw_url_generation(page, debug=False)
+            html_content = sw_url_generation(page=page, browser=browser, debug=False)
             if html_content is not None:
                 tmp = sw_scraper(html_content)
                 res.extend(tmp)
@@ -148,7 +141,7 @@ def scrape_reward_data(pages: Optional[List[int]] = None) -> List[ScraperResult]
     return res
 
 
-def convert_to_df(data: List[ScraperResult]) -> pd.DataFrame:
+def convert_to_df(data: List[StakingRewardsResult]) -> pd.DataFrame:
     to_convert = []
     for d in data:
         tmp = {f.name: getattr(d, f.name) for f in fields(d)}
@@ -159,13 +152,10 @@ def convert_to_df(data: List[ScraperResult]) -> pd.DataFrame:
 def run_as_script():
 
     import argparse
-    from datetime import datetime, date
-    import csv
+    from datetime import date
     import operator
 
     from tabulate import tabulate
-
-    COLUMNS = ["Date", "Ticker", "Price", "Market cap (USD)", "Reward (%)", "Staked value (USD)"]
 
     parser = argparse.ArgumentParser()
 
