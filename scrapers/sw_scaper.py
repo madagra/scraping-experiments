@@ -1,19 +1,27 @@
 import re
 import os
 import time
-from dataclasses import dataclass
-from typing import Tuple, Optional, List
+from dataclasses import dataclass, fields
+from typing import Optional, List
 from bs4 import BeautifulSoup
 from selenium import webdriver
 import logging
+import pandas as pd
 
 
 logger = logging.getLogger(__name__)
 
 MAX_PAGES = 12
 
+ticker_mapping = {
+    "Ethereum 2.0": "ETH",
+    "Solana": "SOL",
+    "Cardano": "ADA"
+    # TODO: Finish it up
+}
+
 os.environ['MOZ_HEADLESS'] = '1'
-browser = webdriver.Firefox()
+
 
 @dataclass
 class ScraperResult:
@@ -118,6 +126,8 @@ def sw_scraper(html_content: str) -> List[ScraperResult]:
 
 def scrape_reward_data(pages: Optional[List[int]] = None) -> List[ScraperResult]:
     
+    browser = webdriver.Firefox()
+    
     res: List[ScraperResult] = []
     if pages is None:
         pages = range(10000)
@@ -133,7 +143,17 @@ def scrape_reward_data(pages: Optional[List[int]] = None) -> List[ScraperResult]
             print(f"Error reading page {page}. Details: {str(e)}")
             break
 
+    browser.close()
+
     return res
+
+
+def convert_to_df(data: List[ScraperResult]) -> pd.DataFrame:
+    to_convert = []
+    for d in data:
+        tmp = {f.name: getattr(d, f.name) for f in fields(d)}
+        to_convert.append(tmp)
+    return pd.DataFrame(to_convert)
 
 
 def run_as_script():
@@ -188,21 +208,11 @@ def run_as_script():
     pages = range(int(pages[0]), int(pages[1]) + 1)
 
     results = scrape_reward_data(pages=pages)
-    # for r in results:
-    #     if r.market_cap_usd is None:
-    #         r.market_cap_usd = 0.
     results.sort(key=operator.attrgetter("market_cap_usd"), reverse=True)
-
+    results_df = convert_to_df(results)
+       
     if args.format == "csv":
-
-        with open("sw_results.csv", "w", newline="") as csvfile:
-
-            writer = csv.writer(csvfile, delimiter=",", quotechar='|', quoting=csv.QUOTE_MINIMAL)
-            now = datetime.now()
-            writer.writerow(COLUMNS)
-            for r in results:
-                row = [now, r.ticker, r.price, r.market_cap_usd, r.reward, r.staked_value_usd]
-                writer.writerow(row)        
+        results_df.to_csv("sw_results.csv")
     
     elif args.format == "table":
         
